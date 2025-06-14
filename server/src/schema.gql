@@ -1,0 +1,72 @@
+# ------------------------------------------------------
+# THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+# ------------------------------------------------------
+
+type Review {
+  id: Int!
+  productId: Int!
+  rating: Int!
+  comment: String!
+  product: Product!
+  createdAt: DateTime!
+}
+
+"""
+A date-time string at UTC, such as 2019-12-03T09:54:33Z, compliant with the date-time format.
+"""
+scalar DateTime
+
+type Product {
+  id: Int!
+  name: String!
+  description: String!
+  price: Float!
+  image: String
+  averageRating: Float
+  reviewsCount: Float
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  reviews: [Review!]!
+}
+
+type Query {
+  products: [Product!]!
+  product(id: Int!): Product!
+  reviews(productId: Int): [Review!]!
+  review(id: Int!): Review!
+}
+
+type Mutation {
+  createProduct(createProductInput: CreateProductInput!): Product!
+  updateProduct(id: Int!, updateProductInput: UpdateProductInput!): Product!
+  removeProduct(id: Int!): Boolean!
+  createReview(createReviewInput: CreateReviewDto!): Review!
+  updateReview(id: Int!, updateReviewInput: UpdateReviewDto!): Review!
+  removeReview(id: Int!): Boolean!
+}
+
+input CreateProductInput {
+  name: String!
+  description: String!
+  price: Float!
+  image: String
+}
+
+input UpdateProductInput {
+  name: String
+  description: String
+  price: Float
+  image: String
+}
+
+input CreateReviewDto {
+  rating: Int!
+  comment: String
+  productId: Int!
+}
+
+input UpdateReviewDto {
+  rating: Int
+  comment: String
+  productId: Int
+}
