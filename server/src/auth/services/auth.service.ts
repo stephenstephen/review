@@ -14,7 +14,7 @@ export class AuthService {
 
   async register(dto: CreateUserDto) {
     const user = await this.usersService.create(dto);
-    return this.generateToken(user.id, user.username);
+    return this.generateToken(user.id, user.username, user.role);
   }
   
   async login(dto: LoginDto) {
@@ -24,11 +24,11 @@ export class AuthService {
     const isMatch = await bcrypt.compare(dto.password, user.password);
     if (!isMatch) throw new UnauthorizedException('Invalid credentials');
 
-    return this.generateToken(user.id, user.username);
+    return this.generateToken(user.id, user.username, user.role);
   }
 
-  private generateToken(userId: number, username: string) {
-    const payload = { sub: userId, username };
+  private generateToken(userId: number, username: string, role: string) {
+    const payload = { sub: userId, username, role };
     return {
       access_token: this.jwtService.sign(payload),
     };

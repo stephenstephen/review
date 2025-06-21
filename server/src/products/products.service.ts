@@ -6,9 +6,11 @@ import { CreateProductInput } from './dto/create-product.input';
 import { UpdateProductInput } from './dto/update-product.input';
 import * as fs from 'fs';
 import * as path from 'path';
+import { PaginationArgs } from '../common/dto/pagination-args.dto';
+import { PaginationMeta } from '@/common/dto/paginated-response.dto';
 
 @Injectable()
-export class ProductsService {
+export class ProductsService {  
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
@@ -19,8 +21,40 @@ export class ProductsService {
     return this.productRepository.save(product);
   }
 
-  findAll(): Promise<Product[]> {
-    return this.productRepository.find();
+  async findAll(
+    paginationArgs: PaginationArgs,
+  ): Promise<{ items: Product[]; meta: PaginationMeta }> {
+    const { page, limit, search } = paginationArgs;
+    const skip = (page - 1) * limit;
+
+    const query = this.productRepository
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.reviews', 'review')
+      .loadRelationCountAndMap('product.reviewsCount', 'product.reviews')
+      .addSelect('COALESCE(AVG(review.rating), 0)', 'averageRating')
+      .groupBy('product.id');
+
+    if (search) {
+      query.where('product.name ILIKE :search', { search: `%${search}%` });
+    }
+
+    const [items, totalItems] = await query
+      .skip(skip)
+      .take(limit)
+      .getManyAndCount();
+
+    const totalPages = Math.ceil(totalItems / limit);
+    const itemCount = items.length;
+
+    const meta: PaginationMeta = {
+      totalItems,
+      itemCount,
+      itemsPerPage: limit,
+      totalPages,
+      currentPage: page,
+    };
+
+    return { items, meta };
   }
 
   async findOne(id: number): Promise<Product> {
@@ -34,7 +68,7 @@ export class ProductsService {
   async update(id: number, updateProductInput: UpdateProductInput): Promise<Product> {
     const product = await this.findOne(id);
 
-    // Si une nouvelle image est fournie, on supprime l’ancienne
+    // Si une nouvelle image est fournie, on supprime l'ancienne
     if (updateProductInput.image && product.image && product.image !== updateProductInput.image) {
       this.deleteImageFile(product.image);
     }
@@ -46,7 +80,7 @@ export class ProductsService {
   async remove(id: number): Promise<boolean> {
     const product = await this.findOne(id);
 
-    // Supprime le fichier image s’il existe
+    // Supprime le fichier image s'il existe
     if (product.image) {
       this.deleteImageFile(product.image);
     }

@@ -26,13 +26,40 @@ type Product {
   reviewsCount: Float
   createdAt: DateTime!
   updatedAt: DateTime!
-  reviews: [Review!]!
+  reviews(filter: FilterReviewDto): [Review!]!
+}
+
+input FilterReviewDto {
+  productId: Int
+  page: Int = 1
+  limit: Int = 10
+  searchText: String
+  sortBy: String = "createdAt"
+  sortOrder: String = "DESC"
+}
+
+type PaginationMeta {
+  totalItems: Int!
+  itemCount: Int!
+  itemsPerPage: Int!
+  totalPages: Int!
+  currentPage: Int!
+}
+
+type PaginatedProducts {
+  meta: PaginationMeta!
+  items: [Product!]!
+}
+
+type PaginatedReviews {
+  meta: PaginationMeta!
+  items: [Review!]!
 }
 
 type Query {
-  products: [Product!]!
+  products(page: Int! = 1, limit: Int! = 10, search: String): PaginatedProducts!
   product(id: Int!): Product!
-  reviews(productId: Int): [Review!]!
+  reviews(filter: FilterReviewDto): PaginatedReviews!
   review(id: Int!): Review!
 }
 

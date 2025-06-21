@@ -9,6 +9,11 @@ import { ReviewsService } from '../reviews/reviews.service';
 import { Review } from '../reviews/entities/review.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { Roles, Role } from '../auth/decorators/roles.decorator';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { FilterReviewDto } from '../reviews/dto/filter-review.dto';
+import { PaginatedProducts } from './dto/paginated-products.dto';
+import { PaginationArgs } from '../common/dto/pagination-args.dto';
 
 @Resolver(() => Product)
 export class ProductsResolver {
@@ -20,15 +25,16 @@ export class ProductsResolver {
   ) {}
 
   @Mutation(() => Product)
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   createProduct(@Args('createProductInput') createProductInput: CreateProductInput) {
     return this.productsService.create(createProductInput);
   }
 
-  @Query(() => [Product], { name: 'products' })
-  @UseGuards(GqlAuthGuard)
-  findAll() {
-    return this.productsService.findAll();
+  @Query(() => PaginatedProducts, { name: 'products' })
+  async products(@Args() paginationArgs: PaginationArgs): Promise<PaginatedProducts> {
+    const { items, meta } = await this.productsService.findAll(paginationArgs);
+    return { items, meta };
   }
 
   @Query(() => Product, { name: 'product' })
@@ -38,7 +44,8 @@ export class ProductsResolver {
   }
 
   @Mutation(() => Product)
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   updateProduct(
     @Args('id', { type: () => Int }) id: number,
     @Args('updateProductInput') updateProductInput: UpdateProductInput,
@@ -47,14 +54,18 @@ export class ProductsResolver {
   }
 
   @Mutation(() => Boolean)
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   removeProduct(@Args('id', { type: () => Int }) id: number) {
     return this.productsService.remove(id);
   }
 
   @ResolveField(() => [Review], { name: 'reviews' })
-  async getReviews(@Parent() product: Product): Promise<Review[]> {
-    return this.reviewsService.findByProductId(product.id);
+  async getReviews(
+    @Parent() product: Product,
+    @Args('filter', { nullable: true }) filterDto?: FilterReviewDto
+  ): Promise<Review[]> {
+    return this.reviewsService.findByProductId(product.id, filterDto);
   }
 
   @ResolveField(() => Number, { name: 'averageRating', nullable: true })

@@ -5,6 +5,10 @@ import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { UseGuards } from '@nestjs/common';
 import { GqlAuthGuard } from '../auth/graphql/gql-auth.guard';
+import { FilterReviewDto } from './dto/filter-review.dto';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles, Role } from '../auth/decorators/roles.decorator';
+import { PaginatedReviews } from './dto/paginated-reviews.dto';
 
 @Resolver(() => Review)
 export class ReviewsResolver {
@@ -16,10 +20,25 @@ export class ReviewsResolver {
     return this.reviewsService.create(createReviewDto);
   }
 
-  @Query(() => [Review], { name: 'reviews' })
+  @Query(() => PaginatedReviews, { name: 'reviews' })
   @UseGuards(GqlAuthGuard)
-  findAll(@Args('productId', { type: () => Int, nullable: true }) productId?: number) {
-    return this.reviewsService.findAll(productId);
+  async findAll(@Args('filter', { nullable: true }) filterDto?: FilterReviewDto) {
+    const { reviews, total } = await this.reviewsService.findAll(filterDto);
+    
+    const page = filterDto?.page || 1;
+    const limit = filterDto?.limit || 10;
+    const totalPages = Math.ceil(total / limit);
+    
+    return {
+      items: reviews,
+      meta: {
+        totalItems: total,
+        itemCount: reviews.length,
+        itemsPerPage: limit,
+        totalPages,
+        currentPage: page,
+      }
+    };
   }
 
   @Query(() => Review, { name: 'review' })
@@ -29,7 +48,8 @@ export class ReviewsResolver {
   }
 
   @Mutation(() => Review)
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   updateReview(
     @Args('id', { type: () => Int }) id: number,
     @Args('updateReviewInput') updateReviewDto: UpdateReviewDto,
@@ -38,7 +58,8 @@ export class ReviewsResolver {
   }
 
   @Mutation(() => Boolean)
-  @UseGuards(GqlAuthGuard)
+  @UseGuards(GqlAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
   removeReview(@Args('id', { type: () => Int }) id: number) {
     return this.reviewsService.remove(id);
   }
