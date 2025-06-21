@@ -26,35 +26,71 @@ export class ProductsService {
   ): Promise<{ items: Product[]; meta: PaginationMeta }> {
     const { page, limit, search } = paginationArgs;
     const skip = (page - 1) * limit;
-
+  
+    // Première requête pour obtenir les IDs des produits avec pagination
     const query = this.productRepository
       .createQueryBuilder('product')
-      .leftJoinAndSelect('product.reviews', 'review')
-      .loadRelationCountAndMap('product.reviewsCount', 'product.reviews')
-      .addSelect('COALESCE(AVG(review.rating), 0)', 'averageRating')
-      .groupBy('product.id');
-
+      .select('product.id');
+  
     if (search) {
       query.where('product.name ILIKE :search', { search: `%${search}%` });
     }
-
-    const [items, totalItems] = await query
-      .skip(skip)
-      .take(limit)
+  
+    // Appliquer la pagination
+    query.skip(skip).take(limit);
+  
+    // Exécuter la requête pour obtenir les IDs
+    const [productIds, totalItems] = await Promise.all([
+      query.getMany().then(products => products.map(p => p.id)),
+      query.getCount()
+    ]);
+  
+    // Si aucun produit ne correspond à la recherche
+    if (productIds.length === 0) {
+      return {
+        items: [],
+        meta: {
+          totalItems: 0,
+          itemCount: 0,
+          itemsPerPage: limit,
+          totalPages: 0,
+          currentPage: page,
+        }
+      };
+    }
+  
+    // Deuxième requête pour obtenir les produits complets avec les relations
+    const [items] = await this.productRepository
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.reviews', 'review')
+      .where('product.id IN (:...ids)', { ids: productIds })
       .getManyAndCount();
-
+  
+    // Calculer les moyennes manuellement
+    const itemsWithStats = items.map(product => {
+      if (product.reviews && product.reviews.length > 0) {
+        const sum = product.reviews.reduce((acc, review) => acc + review.rating, 0);
+        product.averageRating = sum / product.reviews.length;
+        product.reviewsCount = product.reviews.length;
+      } else {
+        product.averageRating = 0;
+        product.reviewsCount = 0;
+      }
+      return product;
+    });
+  
     const totalPages = Math.ceil(totalItems / limit);
-    const itemCount = items.length;
-
-    const meta: PaginationMeta = {
-      totalItems,
-      itemCount,
-      itemsPerPage: limit,
-      totalPages,
-      currentPage: page,
+  
+    return {
+      items: itemsWithStats,
+      meta: {
+        totalItems,
+        itemCount: items.length,
+        itemsPerPage: limit,
+        totalPages,
+        currentPage: page,
+      }
     };
-
-    return { items, meta };
   }
 
   async findOne(id: number): Promise<Product> {
